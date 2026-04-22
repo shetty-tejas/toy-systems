@@ -1,0 +1,8 @@
+#!/bin/sh
+
+rm ./bin/reader ./bin/writer
+
+go build -o bin/reader ./cmd/reader
+go build -o bin/writer ./cmd/writer
+
+chmod +x ./bin/reader ./bin/writer
