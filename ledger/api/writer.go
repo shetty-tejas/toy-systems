@@ -31,7 +31,7 @@ func NewWriter(directory string, limit uint) *Writer {
 	}
 }
 
-func (w *Writer) Append(message string) *models.Entry {
+func (w *Writer) Append(message []byte) *models.Entry {
 	if w.ShouldRollover() {
 		w.Rollover()
 	}

@@ -19,8 +19,8 @@ func TestSegmentForWriteAppendReadAndClose(t *testing.T) {
 		t.Fatalf("expected empty segment size 0, got %d", size)
 	}
 
-	first := segment.Append("alpha")
-	second := segment.Append("beta")
+	first := segment.Append([]byte("alpha"))
+	second := segment.Append([]byte("beta"))
 
 	expectedFirst := &Entry{Segment: 0, Position: 0, Offset: 0, Message: []byte("alpha")}
 	if !reflect.DeepEqual(first, expectedFirst) {
@@ -62,8 +62,8 @@ func TestSegmentForReadReopensExistingData(t *testing.T) {
 	root := t.TempDir()
 
 	writer := SegmentForWrite(root, 7)
-	writer.Append("first")
-	writer.Append("second")
+	writer.Append([]byte("first"))
+	writer.Append([]byte("second"))
 	writer.Close()
 
 	reader := SegmentForRead(root, 7)
@@ -89,12 +89,12 @@ func TestSegmentDirectoriesSupportRolloverStarts(t *testing.T) {
 	root := t.TempDir()
 
 	first := SegmentForWrite(root, 0)
-	first.Append("alpha")
-	first.Append("beta")
+	first.Append([]byte("alpha"))
+	first.Append([]byte("beta"))
 	first.Close()
 
 	second := SegmentForWrite(root, 2)
-	thirdEntry := second.Append("gamma")
+	thirdEntry := second.Append([]byte("gamma"))
 	second.Close()
 
 	directories, err := os.ReadDir(root)

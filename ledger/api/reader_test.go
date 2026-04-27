@@ -92,7 +92,7 @@ func TestNewReaderWaitsForLedgerRootAndFirstSegment(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	writer := NewWriter(ledgerDir, 2)
-	writer.Append("ready")
+	writer.Append([]byte("ready"))
 	writer.Close()
 
 	select {

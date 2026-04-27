@@ -13,7 +13,7 @@ func main() {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		message := scanner.Text()
+		message := scanner.Bytes()
 
 		entry := writer.Append(message)
 

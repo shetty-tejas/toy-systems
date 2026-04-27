@@ -51,10 +51,10 @@ func (s *Segment) GetSize() uint {
 	return s.index.getEntryCount()
 }
 
-func (s *Segment) Append(message string) *Entry {
+func (s *Segment) Append(message []byte) *Entry {
 	entry := &Entry{Segment: s.Start}
 
-	entry.Message = []byte(message)
+	entry.Message = message
 	entry.Offset = s.store.Append(entry.Message)
 	entry.Position = s.index.Append(entry.Offset)
 

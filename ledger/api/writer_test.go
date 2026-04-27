@@ -20,13 +20,13 @@ func TestWriterAppendReturnsEntriesAndRollsOverSegments(t *testing.T) {
 	ledgerDir := filepath.Join(t.TempDir(), "ledger")
 	writer := NewWriter(ledgerDir, 2)
 
-	first := writer.Append("alpha")
-	second := writer.Append("beta")
+	first := writer.Append([]byte("alpha"))
+	second := writer.Append([]byte("beta"))
 	if !writer.ShouldRollover() {
 		t.Fatal("expected writer to rollover after reaching the segment limit")
 	}
 
-	third := writer.Append("gamma")
+	third := writer.Append([]byte("gamma"))
 	if writer.ShouldRollover() {
 		t.Fatal("expected fresh segment to have remaining capacity")
 	}
@@ -54,14 +54,14 @@ func TestWriterAppendReturnsEntriesAndRollsOverSegments(t *testing.T) {
 func TestWriterReopensExistingLedgerDirectory(t *testing.T) {
 	ledgerDir := filepath.Join(t.TempDir(), "ledger")
 	writer := NewWriter(ledgerDir, 3)
-	writer.Append("first")
-	writer.Append("second")
+	writer.Append([]byte("first"))
+	writer.Append([]byte("second"))
 	writer.Close()
 
 	reopened := NewWriter(ledgerDir, 3)
 	defer reopened.Close()
 
-	third := reopened.Append("third")
+	third := reopened.Append([]byte("third"))
 	offsets := messageOffsets("first", "second", "third")
 	assertEntry(t, third, 0, 2, offsets[2], "third")
 	if reopened.segment.Start != 0 {
@@ -82,7 +82,7 @@ func newLedgerWithMessages(t *testing.T, limit uint, messages ...string) string 
 	ledgerDir := filepath.Join(t.TempDir(), "ledger")
 	writer := NewWriter(ledgerDir, limit)
 	for _, message := range messages {
-		writer.Append(message)
+		writer.Append([]byte(message))
 	}
 	writer.Close()
 
