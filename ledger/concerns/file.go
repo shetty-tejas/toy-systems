@@ -1,6 +1,7 @@
 package concerns
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -49,15 +50,20 @@ func FileWrite(file *os.File, data []byte) {
 }
 
 func PollTillDirExists(path string) {
-	for i := 0; !dirExists(path); i++ {
-		if i == 5 {
-			panic(fmt.Sprintln("could not find expected directory at", path))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+
+	for !dirExists(path) {
+		select {
+		case <-ctx.Done():
+			panic(fmt.Sprint("could not find expected directory at", path))
+		case <-t.C:
+			continue
 		}
-
-		time.Sleep(2 * time.Second)
 	}
-
-	time.Sleep(time.Second)
 }
 
 func dirExists(path string) bool {
