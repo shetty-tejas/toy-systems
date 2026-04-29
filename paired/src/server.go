@@ -1,7 +1,7 @@
 package src
 
 import (
-	"errors"
+	"fmt"
 	"net"
 )
 
@@ -27,8 +27,27 @@ func (s *Server) Close() {
 func (s *Server) Accept() *Connection {
 	conn, err := s.listener.Accept()
 	if err != nil {
-		panic(errors.Join(err, conn.Close()))
+		panic(err)
 	}
 
-	return &Connection{conn}
+	return NewConnection(conn)
+}
+
+func (s *Server) ProcessConnection(c *Connection) {
+	defer c.Close()
+
+	for {
+		data, eof := c.ReadLine()
+
+		for len(data) > 0 {
+			c.Write(fmt.Sprintf("received: %s", data))
+
+			data = data[len(data):]
+		}
+
+		if eof {
+			fmt.Println("Connection closed for ", c.Addr())
+			return
+		}
+	}
 }
