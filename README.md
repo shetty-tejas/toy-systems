@@ -7,6 +7,7 @@ Each project here is meant to be a real implementation of one core idea, kept de
 ## Built So Far
 
 - [Ledger](ledger/README.md) — a Kafka-inspired segmented commit log written in Go.
+- [Paired](paired/README.md) — a Redis-inspired in-memory database written in Go.
 
 ## What These Projects Are For
 
