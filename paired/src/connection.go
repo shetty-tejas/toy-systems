@@ -1,23 +1,18 @@
 package src
 
 import (
-	"bufio"
+	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 )
 
 type Connection struct {
-	conn   net.Conn
-	reader *bufio.Reader
+	conn net.Conn
 }
 
 func NewConnection(conn net.Conn) *Connection {
-	return &Connection{
-		conn,
-		bufio.NewReader(conn),
-	}
+	return &Connection{conn}
 }
 
 func (c *Connection) Addr() string {
@@ -30,23 +25,66 @@ func (c *Connection) Close() {
 	}
 }
 
-func (c *Connection) ReadLine() ([]byte, bool) {
-	var eof bool
-	data, err := c.reader.ReadBytes('\n')
-
+func (c *Connection) ReadMessage() ([]byte, bool) {
+	header := make([]byte, 4)
+	i, err := io.ReadFull(c.conn, header)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			eof = true
-		} else {
-			panic(err)
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return []byte{}, true
 		}
+
+		panic(err)
 	}
 
-	return data, eof
+	if i != len(header) {
+		panic("header read seems to be wrong")
+	}
+
+	var length uint32
+
+	i, err = binary.Decode(header, binary.BigEndian, &length)
+	if err != nil {
+		panic(err)
+	}
+
+	if i != len(header) {
+		panic("header decode seems to be wrong")
+	}
+
+	message := make([]byte, length)
+	i, err = io.ReadFull(c.conn, message)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return message, true
+		}
+
+		panic(err)
+	}
+
+	if i != len(message) {
+		panic("message seems to be incomplete")
+	}
+
+	return message, false
 }
 
-func (c *Connection) Write(data string) {
-	i, err := fmt.Fprint(c.conn, data)
+func (c *Connection) Write(data []byte) {
+	size := uint32(len(data))
+
+	header := make([]byte, 4)
+
+	i, err := binary.Encode(header, binary.BigEndian, size)
+	if err != nil {
+		panic(err)
+	}
+
+	if i != len(header) {
+		panic("encoding header went wrong")
+	}
+
+	data = append(header, data...)
+
+	i, err = c.conn.Write(data)
 	if err != nil {
 		panic(err)
 	}

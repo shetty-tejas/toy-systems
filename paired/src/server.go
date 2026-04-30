@@ -37,12 +37,10 @@ func (s *Server) ProcessConnection(c *Connection) {
 	defer c.Close()
 
 	for {
-		data, eof := c.ReadLine()
+		data, eof := c.ReadMessage()
 
-		for len(data) > 0 {
-			c.Write(fmt.Sprintf("received: %s", data))
-
-			data = data[len(data):]
+		if len(data) > 0 {
+			c.Write(fmt.Appendf(nil, "received: %s", data))
 		}
 
 		if eof {

@@ -14,27 +14,26 @@ func main() {
 
 	fmt.Printf("Connection established with %s\n", conn.Addr())
 
-	reader := bufio.NewReader(os.Stdin)
+	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
 		fmt.Printf("> ")
 
-		request, err := reader.ReadString('\n')
-		if err != nil {
-			continue
-		}
+		if scanner.Scan() {
+			request := scanner.Bytes()
 
-		conn.Write(request)
-		response, eof := conn.ReadLine()
+			conn.Write(request)
+			response, eof := conn.ReadMessage()
 
-		_, err = fmt.Fprint(os.Stdout, string(response))
-		if err != nil {
-			panic(err)
-		}
+			_, err := fmt.Fprintln(os.Stdout, string(response))
+			if err != nil {
+				panic(err)
+			}
 
-		if eof {
-			fmt.Println("Connection closed for", conn.Addr())
-			return
+			if eof {
+				fmt.Println("Connection closed for", conn.Addr())
+				return
+			}
 		}
 	}
 }
