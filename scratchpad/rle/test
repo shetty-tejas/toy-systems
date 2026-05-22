@@ -1,0 +1,132 @@
+#!/usr/bin/env sh
+
+# 1. Compile the program
+echo "Compiling rle.c..."
+gcc -o rle rle.c
+
+# Halt if compilation fails
+if [ $? -ne 0 ]; then
+  echo "❌ Compilation failed!"
+  exit 1
+fi
+echo "✅ Compilation successful."
+echo "----------------------------------------"
+
+FAILURES=0
+
+# Helper function to run a compression test
+run_compress_test() {
+  test_name="$1"
+  expected_hex="$2"
+  test_file="$3"
+  
+  actual_hex=$(./rle compress < "$test_file" | xxd -p | tr -d '\n' | tr '[:lower:]' '[:upper:]')
+  expected_normalized=$(echo "$expected_hex" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+
+  if [ "$actual_hex" = "$expected_normalized" ]; then
+    printf "✅ COMPRESS PASS: %s\n" "$test_name"
+  else
+    printf "❌ COMPRESS FAIL: %s\n" "$test_name"
+    printf "   Expected: %s\n" "$expected_normalized"
+    printf "   Actual:   %s\n" "$actual_hex"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# Helper function to run a decompression test
+run_decompress_test() {
+  test_name="$1"
+  input_hex="$2"
+  expected_hex="$3"
+  
+  # Convert input hex string to a binary file
+  echo "$input_hex" | tr -d ' ' | xxd -r -p > comp.bin
+  
+  # Run decompressor and capture output as hex
+  actual_hex=$(./rle decompress < comp.bin | xxd -p | tr -d '\n' | tr '[:lower:]' '[:upper:]')
+  expected_normalized=$(echo "$expected_hex" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+
+  if [ "$actual_hex" = "$expected_normalized" ]; then
+    printf "✅ DECOMPRESS PASS: %s\n" "$test_name"
+  else
+    printf "❌ DECOMPRESS FAIL: %s\n" "$test_name"
+    printf "   Expected: %s\n" "$expected_normalized"
+    printf "   Actual:   %s\n" "$actual_hex"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+echo "--- COMPRESSION TESTS ---"
+
+# 1. Empty File
+printf "" > test.bin
+run_compress_test "1. Empty File" "" test.bin
+
+# 2. Single Byte
+printf "A" > test.bin
+run_compress_test "2. Single Byte" "41 01" test.bin
+
+# 3. No Runs
+printf "ABC" > test.bin
+run_compress_test "3. No Runs" "41 01 42 01 43 01" test.bin
+
+# 4. Basic Runs
+printf "AABBB" > test.bin
+run_compress_test "4. Basic Runs" "41 02 42 03" test.bin
+
+# 5. The Maximum Run
+awk 'BEGIN{for(i=0;i<255;i++) printf "A"}' > test.bin
+run_compress_test "5. The Maximum Run" "41 FF" test.bin
+
+# 6. The Overflow Run
+awk 'BEGIN{for(i=0;i<256;i++) printf "A"}' > test.bin
+run_compress_test "6. The Overflow Run" "41 FF 41 01" test.bin
+
+# 7. The EOF Trap
+printf '\377\377\377' > test.bin
+run_compress_test "7. The EOF Trap" "FF 03" test.bin
+
+# 8. Null Bytes
+printf '\000\000\000' > test.bin
+run_compress_test "8. Null Bytes" "00 03" test.bin
+
+echo ""
+echo "--- DECOMPRESSION TESTS ---"
+
+# D1. Empty File
+run_decompress_test "1. Empty File" "" ""
+
+# D2. Single Byte 
+run_decompress_test "2. Single Byte" "41 01" "41"
+
+# D3. No Runs 
+run_decompress_test "3. No Runs" "41 01 42 01 43 01" "41 42 43"
+
+# D4. Basic Runs 
+run_decompress_test "4. Basic Runs" "41 02 42 03" "41 41 42 42 42"
+
+# D5. The Maximum Run (Using awk to generate 255 '41's)
+expected_255=$(awk 'BEGIN{for(i=0;i<255;i++) printf "41"}')
+run_decompress_test "5. The Maximum Run" "41 FF" "$expected_255"
+
+# D6. The Overflow Run (Using awk to generate 256 '41's)
+expected_256=$(awk 'BEGIN{for(i=0;i<256;i++) printf "41"}')
+run_decompress_test "6. The Overflow Run" "41 FF 41 01" "$expected_256"
+
+# D7. The EOF Trap (Three 0xFF bytes)
+run_decompress_test "7. The EOF Trap" "FF 03" "FF FF FF"
+
+# D8. Null Bytes (Three 0x00 bytes)
+run_decompress_test "8. Null Bytes" "00 03" "00 00 00"
+
+# Clean up
+rm -f test.bin comp.bin rle
+
+echo "----------------------------------------"
+if [ $FAILURES -eq 0 ]; then
+  echo "All tests passed! 🎉 Your RLE program is bulletproof."
+  exit 0
+else
+  echo "$FAILURES test(s) failed."
+  exit 1
+fi
