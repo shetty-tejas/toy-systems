@@ -72,7 +72,20 @@ void counter(char *buf, unsigned int length, counter_t *count) {
   }
 }
 
-void countFromFile(char *file, int flags, counter_t *count) {
+void countFromStdin(counter_t *count) {
+  char *buf = NULL;
+  size_t buf_size = 0, size = 0;
+
+  while ((size = getline(&buf, &buf_size, stdin)) != -1) {
+    counter(buf, size, count);
+  }
+
+  if (buf != NULL) {
+    free(buf);
+  }
+}
+
+void countFromFile(char *file, counter_t *count) {
   int fd = open(file, O_RDONLY);
   if (fd < 0) {
     close(fd);
@@ -100,30 +113,29 @@ void countFromFile(char *file, int flags, counter_t *count) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc == 1) {
-    printf("Usage: cwc -[clw] [file ...]");
-    return 1;
-  }
-
   int flags = WordFlag | LineFlag | ByteFlag;
   int offset = 1;
 
-  if (*argv[1] == '-') {
+  if (argc > 1 && *argv[1] == '-') {
     offset = 2;
     flags = parseFlags(argv[1]);
   }
 
-  // if (argc <= 2) {
-  //   countFromStdin();
-  // }
+  if (offset == argc) {
+    counter_t count = {0};
 
-  int files = argc - offset;
+    countFromStdin(&count);
+    printer(&count, "", flags);
+
+    return 0;
+  }
+
   counter_t sum = {0};
 
   for (int i = offset; i < argc; i++) {
     counter_t count = {0};
 
-    countFromFile(argv[i], flags, &count);
+    countFromFile(argv[i], &count);
     printer(&count, argv[i], flags);
 
     sum.line += count.line;
@@ -132,7 +144,7 @@ int main(int argc, char *argv[]) {
     sum.multibyte += count.multibyte;
   }
 
-  if (files != 1) {
+  if ((argc - offset) != 1) {
     printer(&sum, "total", flags);
   }
 
