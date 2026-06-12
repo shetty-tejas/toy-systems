@@ -1,116 +1,140 @@
-#include <ctype.h>
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <unistd.h>
-
-const uint8_t BYTE_FLAG = 0b001;
-const uint8_t LINE_FLAG = 0b010;
-const uint8_t WORD_FLAG = 0b100;
-
-#define BYTE_FLAG_SET(flags) (((flags) & BYTE_FLAG) != 0)
-#define LINE_FLAG_SET(flags) (((flags) & LINE_FLAG) != 0)
-#define WORD_FLAG_SET(flags) (((flags) & WORD_FLAG) != 0)
+#include "wc.h"
 
 int parseFlags(char *input) {
   uint8_t flags = 0;
 
-  for (int i = 0; input[i] != '\0'; i++) {
-    int set = 0;
-
-    switch (input[i]) {
+  while (*input) {
+    switch (*input) {
     case 'c':
-      set = BYTE_FLAG;
+      flags |= ByteFlag;
+      flags &= ~MultFlag;
       break;
     case 'l':
-      set = LINE_FLAG;
+      flags |= LineFlag;
       break;
     case 'w':
-      set = WORD_FLAG;
+      flags |= WordFlag;
+      break;
+    case 'm':
+      flags |= MultFlag;
+      flags &= ~ByteFlag;
       break;
     }
 
-    flags |= set;
+    input++;
   }
 
   return flags;
 }
 
-void printer(int lineCount, int wordCount, int byteCount, char *file,
-             int flags) {
-  if (LINE_FLAG_SET(flags)) {
-    printf("%7d\t", lineCount);
+int isFlagSet(flags_t flag, int flags) { return (flags & flag) != 0; }
+
+void printer(counter_t *count, char *file, int flags) {
+  if (isFlagSet(LineFlag, flags)) {
+    printf("%7d\t", count->line);
   }
 
-  if (WORD_FLAG_SET(flags)) {
-    printf("%7d\t", wordCount);
+  if (isFlagSet(WordFlag, flags)) {
+    printf("%7d\t", count->word);
   }
 
-  if (BYTE_FLAG_SET(flags)) {
-    printf("%7d\t", byteCount);
+  if (isFlagSet(ByteFlag, flags)) {
+    printf("%7d\t", count->byte);
+  }
+
+  if (isFlagSet(MultFlag, flags)) {
+    printf("%7d\t", count->multibyte);
   }
 
   printf("%s\n", file);
 }
 
-void counter(char buf, int *byteCount, int *lineCount, int *inWord,
-             int *wordCount) {
-  (*byteCount)++;
+void counter(char *buf, unsigned int length, counter_t *count) {
+  for (int i = 0; i < length; i++) {
+    char ch = buf[i];
 
-  if (buf == '\n') {
-    (*lineCount)++;
-  }
+    count->byte++;
 
-  if (isspace(buf)) {
-    (*inWord) = 0;
-  } else if (!*inWord) {
-    (*inWord) = 1;
-    (*wordCount)++;
+    if (ch == '\n') {
+      count->line++;
+    }
+
+    if ((ch & 0xC0) != 0x80) {
+      count->multibyte++;
+    }
+
+    if (isspace(ch)) {
+      count->in_word = 0;
+    } else if (!count->in_word) {
+      count->in_word = 1;
+      count->word++;
+    }
   }
 }
 
-void countFromFile(char *file, int flags) {
+void countFromFile(char *file, int flags, counter_t *count) {
   int fd = open(file, O_RDONLY);
   if (fd < 0) {
+    close(fd);
+
     perror("file errors");
     return;
   }
 
-  int byteCount = 0, lineCount = 0, wordCount = 0, inWord = 0;
+  int size;
   char buf[1024 * 4];
 
   while (1) {
-    int rs = read(fd, buf, sizeof(buf));
-    if (rs <= 0) {
-      if (rs < 0) {
-        perror("read error");
-      }
-
+    size = read(fd, buf, sizeof(buf));
+    if (size > 0)
+      counter(buf, size, count);
+    else if (size == 0)
       break;
-    }
-
-    for (int i = 0; i < rs; i++) {
-      counter(buf[i], &byteCount, &lineCount, &inWord, &wordCount);
+    else {
+      perror("read error");
+      break;
     }
   }
 
-  printer(lineCount, wordCount, byteCount, file, flags);
   close(fd);
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    printf("Usage: cwc -[c] [file ...]");
+  if (argc == 1) {
+    printf("Usage: cwc -[clw] [file ...]");
     return 1;
   }
 
-  const int flags = parseFlags(argv[1]);
+  int flags = WordFlag | LineFlag | ByteFlag;
+  int offset = 1;
 
-  if (argc >= 3) {
-    for (int i = 2; i < argc; i++) {
-      countFromFile(argv[i], flags);
-    }
-  } else {
-    printf("not implemented");
+  if (*argv[1] == '-') {
+    offset = 2;
+    flags = parseFlags(argv[1]);
   }
+
+  // if (argc <= 2) {
+  //   countFromStdin();
+  // }
+
+  int files = argc - offset;
+  counter_t sum = {0};
+
+  for (int i = offset; i < argc; i++) {
+    counter_t count = {0};
+
+    countFromFile(argv[i], flags, &count);
+    printer(&count, argv[i], flags);
+
+    sum.line += count.line;
+    sum.byte += count.byte;
+    sum.word += count.word;
+    sum.multibyte += count.multibyte;
+  }
+
+  if (files != 1) {
+    printer(&sum, "total", flags);
+  }
+
+  return 0;
 }
